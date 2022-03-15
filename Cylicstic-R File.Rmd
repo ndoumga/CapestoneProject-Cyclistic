@@ -1,0 +1,221 @@
+---
+title: "Cyclistic - Capestone project 1"
+author: "Zacharie Ndoumga"
+date: '2022-03-15'
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+This is document is produced for the capstone project at the end of the Google Professional Data Analyst Certificate program. on Coursera. Data cleaning and processing will be carried out here, then the cleaned document will be exported for analysis on other programs, precisely Tabeau, and a final report/presentation will also be done (Look into the github repository).
+
+## Libraries
+
+For this project, we will need a handful of libraries. These will be installed and executed
+
+```{r Installing necessary libraries, message=FALSE, warning=FALSE}
+
+#install.packages("tidyverse")
+#install.packages("here")
+#install.packages("purr")
+#install.packages("skimr")
+#install.packages("janitor")
+#install.packages("lubridate")
+
+library(tidyverse)
+library(here)
+library(skimr)
+library(janitor)
+library(lubridate)
+library(ggplot2)
+library(dplyr)
+library(scales)
+```
+
+
+
+## Importing the data
+
+Now that our environment is set up, the csv files with the data are uploaded. 
+```{r Importing data libraries, echo=TRUE, message=FALSE, warning=FALSE}
+
+setwd("~/Documents/Data Analytics/Portfolio Projects/Track 1 - Bicycle/Dataset/12 last months/CSV")
+
+y2021_03 <- read.csv("202103-divvy-tripdata.csv")
+y2021_04 <- read.csv("202104-divvy-tripdata.csv")
+y2021_05 <- read.csv("202105-divvy-tripdata.csv")
+y2021_06 <- read.csv("202106-divvy-tripdata.csv")
+y2021_07 <- read.csv("202107-divvy-tripdata.csv")
+y2021_08 <- read.csv("202108-divvy-tripdata.csv")
+y2021_09 <- read.csv("202109-divvy-tripdata.csv")
+y2021_10 <- read.csv("202110-divvy-tripdata.csv")
+y2021_11 <- read.csv("202111-divvy-tripdata.csv")
+y2021_12 <- read.csv("202112-divvy-tripdata.csv")
+y2022_01 <- read.csv("202201-divvy-tripdata.csv")
+y2022_02 <- read.csv("202202-divvy-tripdata.csv")
+
+```
+
+The next step is to combine the all the files into one file to form our data frame. (PS: The data was checked prior to determine the framework on all the files were similar and could thus be combined)
+
+```{r echo = FALSE, message=FALSE, warning=FALSE}
+full_year <- bind_rows(y2021_03, y2021_04, y2021_05, y2021_06, y2021_07, y2021_08, y2021_09, y2021_10, y2021_11, y2021_12, y2022_01, y2022_02)
+```
+ 
+## Data cleaning and processing
+
+The data frame is checked to see iff all the data types are conguent with what they should be.
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+str(full_year)
+```
+
+It is noticed that the start and end times are in string types. They will be change to time formats. A few column names also will be changed to be a bit more intuitive and making the rest of the process easier. 
+
+```{r echo=TRUE, message=FALSE, warning=FALSE}
+## renaming a few columns
+full_year <- rename(full_year, bike_type = rideable_type, start_time = started_at, end_time = ended_at, user_type = member_casual)
+
+## converting start and end time to time formats
+full_year <- mutate(full_year, start_time = strptime(start_time, "%Y-%m-%d %H:%M:%S"), end_time = strptime(end_time, "%Y-%m-%d %H:%M:%S")) 
+
+```
+
+```{r , include=FALSE}
+str(full_year)
+```
+
+
+Now the data type is fixed. To provide a higher level of granularity when analyzing the data, the start time will be broken down into time of the day, week day and month. The ride length will also be calculated by taking the difference of the end and start time. Since the data will be altered, a new variable will be created to house the modified version.
+
+```{r  message=FALSE, warning=FALSE}
+
+full_year_v1 <- mutate(full_year, ride_length = as.numeric(difftime(end_time, start_time, units = "mins")), hours = format(start_time, "%H"), week_day = weekdays(start_time), month_day = format(start_time, "%d"), month = month(start_time, label = TRUE))
+
+str(full_year_v1)
+```
+
+The days of the week are not listed in a chronological order. This has to be fixed
+
+```{r echo=FALSE, message=FALSE, warning=FALSE}
+full_year_v1$week_day <- ordered(full_year_v1$week_day, levels=c("Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"))
+
+#str(full_year_v1)
+```
+
+Now the data is checked for NA rows.
+
+```{r message=FALSE, warning=FALSE}
+summary(full_year_v1)
+```
+
+As expected, there are quite a few NA rows. As the longitudes and latitudes are not of importance in our analysis, we are not going to drop those. However, the rows with NA start time, end time and trip duration will be dropped. The data is agained modified, so a new version variable of the data is created.
+
+```{r message=FALSE, warning=FALSE}
+full_year_v2 <- drop_na(full_year_v1, start_time, end_time, ride_length)
+```
+
+The data is made up of some rows with negative ride times. This is the case for when the bikes are taken out for maintenance. These rows will be dropped as well.
+
+```{r}
+full_year_v3 <- subset(full_year_v2, ride_length > 0) 
+```
+
+Now the data is ready for the analyzing. 
+
+```{r}
+df <- full_year_v3
+```
+
+## Analyzing the data
+
+Total number of rides 
+
+```{r}
+summarise(df, number_of_rides = n_distinct(ride_id))
+```
+
+Number of rides by user type
+
+```{r}
+df %>% group_by(user_type) %>% 
+  summarise(number_of_rides = n()) %>% 
+  ggplot( aes(x = user_type, y=number_of_rides, fill=user_type)) + 
+  geom_col() + labs(title ="Number of Rides by each User Type", x = "User Type" , y="Number of Rides")  + theme(legend.position ="none") + scale_y_continuous(labels = comma)
+```
+
+Total ride time by user type over the last 12 months
+
+```{r}
+df %>% group_by(user_type) %>% 
+  summarise(total_ride_length = sum(ride_length)) %>% 
+  ggplot( aes(x = user_type, y=total_ride_length, fill=user_type)) + 
+  geom_col() + labs(title ="Total duration of Rides by each User Type in Minutes", x = "User Type" , y="Ride Length") + theme(legend.position ="none") + scale_y_continuous(labels = comma)
+```
+
+Rides by user type over the past 12 months
+
+```{r message=FALSE, warning=FALSE}
+df %>% group_by(month,user_type) %>% 
+  summarise(number_of_rides = n()) %>% 
+  ggplot( aes(x = month, y=number_of_rides, group= user_type, color=user_type)) + 
+  geom_line(size=1) + labs(title ="Number of Rides by each User Type over the Year", x = "" , y="Number of rides") + scale_y_continuous(labels = comma)
+```
+
+Average ride length by user type over the last 12 months
+
+```{r message=FALSE, warning=FALSE}
+df %>% 
+  group_by(month, user_type) %>% 
+  summarise(avg_ride_length = mean(ride_length)) %>% 
+  ggplot( aes(x = month, y=avg_ride_length, group=user_type, color=user_type)) + 
+  geom_line(size=1) + ylim(0, 50) + labs(title ="Average ride length by each User Type over the Year", x = "" , y="Average ride length")
+```
+
+Rides by user type on the different days of the week
+
+```{r message=FALSE, warning=FALSE}
+df %>% group_by(week_day, user_type) %>% 
+  summarise(number_of_rides = n()) %>% 
+  ggplot( aes(x = week_day, y=number_of_rides, group = user_type, color =user_type)) + 
+  geom_line(size=1) + ylim(0, 600000) +  labs(title ="Number of Rides by each User Type on Different Week Days", x = "" , y="Number of rides")
+```
+
+Average ride duration by user type on the different days of the week
+
+```{r message=FALSE, warning=FALSE}
+df %>% group_by(week_day, user_type) %>% 
+  summarise(avg_ride_length = mean(ride_length)) %>% 
+  ggplot( aes(x = week_day, y=avg_ride_length, group = user_type, color =user_type)) + 
+  geom_line(size=1) + ylim(0, 40) +  labs(title ="Average ride length by each User Type on Different Days of the Week", x = "" , y="Average ride length")
+```
+
+Rides by user type over the hours of the day
+
+```{r}
+df %>% group_by(hours, user_type) %>%
+  summarise(number_of_rides = n()) %>% 
+  ggplot( aes(x = hours, y=number_of_rides, group = user_type, color =user_type)) + 
+  geom_line(size=1) +  labs(title ="Number of rides by each User Type at Different Time of the Day", x = "Hour" , y="Number of Rides") + scale_y_continuous(labels = comma)
+```
+
+Average ride duration by user type over the different days of the day
+```{r}
+df %>%
+  group_by(hours, user_type) %>% 
+  summarise(avg_ride_length = mean(ride_length)) %>% 
+  ggplot( aes(x = hours, y=avg_ride_length, group = user_type, color =user_type)) + 
+  geom_line(size=1) + ylim(0, 60) +  labs(title ="Average ride length by each User Type at Different Time of the Day", x = "Hour" , y="Average ride length")
+```
+```
+
+We are done with R Studio. The rest of the analysis will be done on other platforms and the report will be produces. 
+
+```{r}
+#write_csv(df, "cyclistitic_full_year_clean")
+```
+
+
+
