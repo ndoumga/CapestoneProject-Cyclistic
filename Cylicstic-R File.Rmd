@@ -9,7 +9,7 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-This is document is produced for the capstone project at the end of the Google Professional Data Analyst Certificate program. on Coursera. Data cleaning and processing will be carried out here, then the cleaned document will be exported for analysis on other programs, precisely Tabeau, and a final report/presentation will also be done (Look into the github repository).
+This document is produced for the capstone project at the end of the Google Professional Data Analyst Certificate program. on Coursera. Data cleaning and processing will be carried out here, then the cleaned document will be exported for analysis on other programs, precisely Tabeau, and a final report/presentation will also be done (Look into the github repository).
 
 ## Libraries
 
